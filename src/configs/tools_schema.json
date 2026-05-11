@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/step-security/setup-php/release/src/configs/tools_schema.json",
+  "$id": "https://raw.githubusercontent.com/step-security/setup-php/main/src/configs/tools_schema.json",
   "type": "object",
   "title": "Tools",
   "default": {},
