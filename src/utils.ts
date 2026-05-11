@@ -50,7 +50,7 @@ export async function getInput(
  */
 export async function getManifestURLS(): Promise<string[]> {
   return [
-    'https://raw.githubusercontent.com/step-security/setup-php/release/src/configs/php-versions.json',
+    'https://raw.githubusercontent.com/step-security/setup-php/main/src/configs/php-versions.json',
     'https://setup-php.com/php-versions.json'
   ];
 }
