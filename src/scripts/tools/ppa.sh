@@ -3,7 +3,7 @@ set_base_version_id() {
   [[ "$ID" =~ ubuntu|debian ]] && return;
   if ! [ -d "$dist_info_dir" ]; then
     sudo mkdir -p "$dist_info_dir"
-    get -q -n "$dist_info_dir"/os_releases.csv https://raw.githubusercontent.com/shivammathur/setup-php/develop/src/configs/os_releases.csv
+    get -q -n "$dist_info_dir"/os_releases.csv https://raw.githubusercontent.com/step-security/setup-php/release/src/configs/os_releases.csv
   fi
   for base in ubuntu debian; do
     [[ "$ID_LIKE" =~ $base ]] && ID="$base" && VERSION_ID="$(grep -hr -m 1 "$VERSION_CODENAME" /usr/share/distro-info | cut -d ',' -f 1 | cut -d ' ' -f 1)" && break

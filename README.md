@@ -952,12 +952,9 @@ Examples of using `setup-php` with various PHP frameworks and packages.
 
 ## :bookmark: Versioning
 
-- Use the `v2` tag as `setup-php` version. It is a rolling tag and is synced with the latest minor and patch releases. With `v2` you automatically get the bug fixes, security patches, new features and support for latest PHP releases.
 - Semantic release versions can also be used. It is recommended to [use dependabot](https://docs.github.com/en/github/administering-a-repository/keeping-your-actions-up-to-date-with-github-dependabot "Setup Dependabot with GitHub Actions") with semantic versioning to keep the actions in your workflows up to date.
-- Commit SHA can also be used, but are not recommended unless you set up tooling to update them with each release of the action.
 - A new major version of the action will only be tagged when there are breaking changes in the setup-php API i.e. inputs, outputs, and environment flags.
 - It is highly discouraged to use the `main` branch as version, it might break your workflow after major releases as they have breaking changes.
-- If you are using the `v1` tag or a `1.x.y` version, you should [switch to v2](https://github.com/step-security/setup-php/wiki/Switch-to-v2 "Guide for switching from setup-php v1 to v2") as `v1` is not supported anymore.
 
 ## :scroll: License
 
