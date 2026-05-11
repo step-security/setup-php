@@ -1,0 +1,63 @@
+{
+  "name": "setup-php",
+  "version": "2.37.0",
+  "private": false,
+  "description": "Setup PHP for use with GitHub Actions",
+  "main": "lib/install.js",
+  "types": "lib/install.d.ts",
+  "directories": {
+    "lib": "lib",
+    "test": "__tests__",
+    "src": "src"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc && ncc build -m -o dist",
+    "lint": "eslint **/src/*.ts **/__tests__/*.ts --cache --fix",
+    "format": "prettier --write **/src/*.ts **/__tests__/*.ts && git add -f __tests__/ ",
+    "format-check": "prettier --check **/src/*.ts **/__tests__/*.ts",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/step-security/setup-php.git"
+  },
+  "keywords": [
+    "actions",
+    "php",
+    "setup"
+  ],
+  "author": "step-security",
+  "license": "MIT",
+  "dependencies": {
+    "@actions/core": "^1.10.0",
+    "@actions/exec": "^2.0.0",
+    "axios": "^1.16.0",
+    "compare-versions": "^6.1.1"
+  },
+  "devDependencies": {
+    "@eslint/compat": "^2.0.3",
+    "@eslint/js": "^10.0.1",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^25.5.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.2",
+    "@typescript-eslint/parser": "^8.57.2",
+    "@vercel/ncc": "^0.38.4",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-plugin-jest": "^29.15.1",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.4.0",
+    "jest": "^30.3.0",
+    "jest-circus": "^30.3.0",
+    "nock": "^14.0.11",
+    "prettier": "^3.8.1",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.9.3"
+  }
+}
