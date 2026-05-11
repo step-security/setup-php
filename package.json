@@ -15,11 +15,10 @@
     "src"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && ncc build -m -o dist",
     "lint": "eslint **/src/*.ts **/__tests__/*.ts --cache --fix",
     "format": "prettier --write **/src/*.ts **/__tests__/*.ts && git add -f __tests__/ ",
     "format-check": "prettier --check **/src/*.ts **/__tests__/*.ts",
-    "release": "ncc build -m -o dist && git add -f dist/",
     "test": "jest"
   },
   "repository": {
@@ -36,8 +35,7 @@
   "dependencies": {
     "@actions/core": "^1.10.0",
     "@actions/exec": "^2.0.0",
-    "@actions/github": "^6.0.0",
-    "axios": "^1.7.9",
+    "axios": "^1.16.0",
     "compare-versions": "^6.1.1"
   },
   "devDependencies": {
@@ -61,13 +59,5 @@
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
     "typescript": "^5.9.3"
-  },
-  "overrides": {
-    "test-exclude": "^7.0.1",
-    "glob": "^13.0.6",
-    "minimatch": "^10.2.1"
-  },
-  "bugs": {
-    "url": "https://github.com/step-security/setup-php/issues"
   }
 }
