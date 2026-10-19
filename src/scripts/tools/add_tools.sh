@@ -85,6 +85,10 @@ composer_gh_auth_no_op() {
 
 # Function to setup authentication in composer.
 set_composer_auth() {
+  without_trace set_composer_auth_helper
+}
+
+set_composer_auth_helper() {
   token="${COMPOSER_TOKEN:-$GITHUB_TOKEN}"
   if [ -n "${COMPOSER_AUTH_JSON:-}" ]; then
     if printf '%s' "$COMPOSER_AUTH_JSON" | jq -e . >/dev/null; then
@@ -185,6 +189,9 @@ add_tools_helper() {
     if [ -e "$tool_path_dir"/phpunit ] && [ -d "$composer_bin" ]; then
       sudo cp "$tool_path_dir"/phpunit "$composer_bin"
     fi
+  elif [ "$tool" = "cloud-cli" ]; then
+    extensions+=(dom fileinfo iconv sockets tokenizer)
+    sudo ln -s "$scoped_dir"/vendor/bin/cloud "$scoped_dir"/vendor/bin/cloud-cli 2>/dev/null || true
   elif [ "$tool" = "vapor-cli" ]; then
     extensions+=(fileinfo json mbstring zip simplexml)
     sudo ln -s "$scoped_dir"/vendor/bin/vapor "$scoped_dir"/vendor/bin/vapor-cli 2>/dev/null || true
@@ -201,8 +208,15 @@ add_tool() {
   url=$1
   tool=$2
   ver_param=$3
+  checksum=
+  local arg
+  for arg in "$@"; do
+    [[ "$arg" =~ ^sha(256|512):[0-9a-fA-F]+$ ]] && checksum="$arg"
+  done
+  [[ "$ver_param" =~ ^sha(256|512): ]] && ver_param=
   if [ "$tool" = "composer" ]; then
     skip_composer_github_auth="${4:-false}"
+    [[ "$skip_composer_github_auth" =~ ^sha(256|512): ]] && skip_composer_github_auth=false
   fi
   tool_path="$tool_path_dir/$tool"
   if ! [ -d "$tool_path_dir" ]; then
@@ -220,7 +234,12 @@ add_tool() {
   is_mutable_tool_url "${url[0]}" && use_cache=false
   status_code="200"
   if [ "$use_cache" = "true" ] && [ -f "$cache_path" ]; then
-    sudo cp -a "$cache_path" "$tool_path"
+    if [ -n "$checksum" ] && ! verify_checksum "$cache_path" "$checksum"; then
+      sudo rm -f "$cache_path"
+      status_code="checksum_mismatch"
+    else
+      sudo cp -a "$cache_path" "$tool_path"
+    fi
   else
     [ -f "$tool_path" ] && sudo cp -a "$tool_path" "$tool_path.bak"
     status_code=$(get -v -e "$tool_path" "${url[@]}")
@@ -229,8 +248,14 @@ add_tool() {
       status_code=$(get -v -e "$tool_path" "${url[0]}")
     fi
     if [ "$status_code" = "200" ]; then
-      [ "$use_cache" = "true" ] && sudo cp -a "$tool_path" "$cache_path"
-    elif [ -f "$tool_path.bak" ]; then
+      if [ -n "$checksum" ] && ! verify_checksum "$tool_path" "$checksum"; then
+        sudo rm -f "$tool_path" "$cache_path"
+        status_code="checksum_mismatch"
+      elif [ "$use_cache" = "true" ]; then
+        sudo cp -a "$tool_path" "$cache_path"
+      fi
+    fi
+    if [ "$status_code" != "200" ] && [ -f "$tool_path.bak" ]; then
       sudo mv "$tool_path.bak" "$tool_path"
     fi
     sudo rm -f "$tool_path.bak"
@@ -244,7 +269,9 @@ add_tool() {
     if [ "$tool" = "composer" ]; then
       export fail_fast=true
     fi
-    if [ "$status_code" = "404" ]; then
+    if [ "$status_code" = "checksum_mismatch" ]; then
+      add_log "$cross" "$tool" "Checksum verification failed for $tool"
+    elif [ "$status_code" = "404" ]; then
       add_log "$cross" "$tool" "Failed to download $tool from ${url[*]}"
     else
       add_log "$cross" "$tool" "Could not setup $tool"

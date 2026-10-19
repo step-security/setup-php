@@ -1,4 +1,5 @@
 import fs from 'fs';
+import os from 'os';
 import * as path from 'path';
 import * as utils from '../src/utils';
 import * as fetchModule from '../src/fetch';
@@ -39,10 +40,17 @@ describe('Utils tests', () => {
   });
 
   it('checking parseVersion', async () => {
-    const fetchSpy = jest
-      .spyOn(fetchModule, 'fetch')
-      .mockResolvedValue({data: '{ "latest": "8.1", "5.x": "5.6" }'});
-    expect(await utils.parseVersion('latest')).toBe('8.1');
+    const fetchSpy = jest.spyOn(fetchModule, 'fetch').mockResolvedValue({
+      data: fs.readFileSync(
+        path.join(__dirname, '../src/configs/php-versions.json'),
+        'utf8'
+      )
+    });
+    expect(await utils.parseVersion('latest')).toBe('8.5');
+    expect(await utils.parseVersion('nightly')).toBe('8.6');
+    expect(await utils.parseVersion('master')).toBe('8.7');
+    expect(await utils.parseVersion('8.7')).toBe('8.7');
+    expect(await utils.parseVersion('8.7.0')).toBe('8.7');
     expect(await utils.parseVersion('7')).toBe('7.0');
     expect(await utils.parseVersion('7.4')).toBe('7.4');
     expect(await utils.parseVersion('5.x')).toBe('5.6');
@@ -54,11 +62,16 @@ describe('Utils tests', () => {
     await expect(utils.parseVersion('foo')).rejects.toThrow(
       'Invalid PHP version:'
     );
-
-    fetchSpy.mockResolvedValue({data: '{ "latest": "8.1.0" }'});
-    await expect(utils.parseVersion('latest')).rejects.toThrow(
-      'Invalid PHP version in manifest:'
+    await expect(utils.parseVersion('8.4\n$(id)')).rejects.toThrow(
+      'Invalid PHP version:'
     );
+
+    for (const latest of ['8.1.0', 'pre', 8.4, ['8.4']]) {
+      fetchSpy.mockResolvedValue({data: JSON.stringify({latest})});
+      await expect(utils.parseVersion('latest')).rejects.toThrow(
+        'Invalid PHP version in manifest:'
+      );
+    }
 
     fetchSpy.mockReset();
     fetchSpy.mockResolvedValueOnce({}).mockResolvedValueOnce({});
@@ -332,8 +345,30 @@ describe('Utils tests', () => {
     readFileSync.mockReturnValue('ruby 1.2.3\nphp 8.4.2\nnode 20.1.2');
     expect(await utils.readPHPVersion()).toBe('8.4.2');
 
+    readFileSync.mockReturnValue('ruby 1.2.3\nphp 8.4\nnode 20.1.2');
+    expect(await utils.readPHPVersion()).toBe('8.4');
+
+    readFileSync.mockReturnValue('ruby 1.2.3\nphp latest\nnode 20.1.2');
+    expect(await utils.readPHPVersion()).toBe('latest');
+
+    readFileSync.mockReturnValue(' \t8.4 \t\n');
+    expect(await utils.readPHPVersion()).toBe('8.4');
+
+    readFileSync.mockReturnValue(
+      '#PHP\r\n\r\nruby 1.2.3\r\n \tphp \t latest \t# version\r\nnode 20.1.2'
+    );
+    expect(await utils.readPHPVersion()).toBe('latest');
+
+    readFileSync.mockReturnValue('php\n8.4');
+    await expect(utils.readPHPVersion()).rejects.toThrow('Invalid PHP version');
+
+    process.env['php-version-file'] = '.tool-versions';
+    readFileSync.mockReturnValue("ruby 1.2.3\nphp 8.4';id;#\nnode 20.1.2");
+    await expect(utils.readPHPVersion()).rejects.toThrow('.tool-versions');
+    delete process.env['php-version-file'];
+
     existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue('setup-php');
+    readFileSync.mockReturnValue('php 8.4 8.5');
     await expect(utils.readPHPVersion()).rejects.toThrow('Invalid PHP version');
 
     existsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
@@ -359,27 +394,42 @@ describe('Utils tests', () => {
     const existsSync = jest.spyOn(fs, 'existsSync').mockImplementation();
     const readFileSync = jest.spyOn(fs, 'readFileSync').mockImplementation();
 
-    process.env['php-version'] = 'bogus';
+    process.env['php-version'] = '$0';
     await expect(utils.readPHPVersion()).rejects.toThrow('php-version input');
     delete process.env['php-version'];
 
     existsSync.mockReturnValue(true);
-    readFileSync.mockReturnValue('bogus');
+    readFileSync.mockReturnValue(';id');
     await expect(utils.readPHPVersion()).rejects.toThrow('.php-version');
 
     existsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
-    readFileSync.mockReturnValue('{"platform-overrides":{"php":"bogus"}}');
+    readFileSync.mockReturnValue('{"platform-overrides":{"php":"`w`"}}');
     await expect(utils.readPHPVersion()).rejects.toThrow(
       'composer.lock platform-overrides.php'
+    );
+
+    existsSync.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    readFileSync.mockReturnValue('{"platform-overrides":{"php":8.4}}');
+    await expect(utils.readPHPVersion()).rejects.toThrow(
+      'composer.lock platform-overrides.php: number'
     );
 
     existsSync
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
-    readFileSync.mockReturnValue('{"config":{"platform":{"php":"bogus"}}}');
+    readFileSync.mockReturnValue('{"config":{"platform":{"php":"8.4$(id)"}}}');
     await expect(utils.readPHPVersion()).rejects.toThrow(
       'composer.json config.platform.php'
+    );
+
+    existsSync
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(false)
+      .mockReturnValueOnce(true);
+    readFileSync.mockReturnValue('{"config":{"platform":{"php":["8.4"]}}}');
+    await expect(utils.readPHPVersion()).rejects.toThrow(
+      'composer.json config.platform.php: object'
     );
 
     existsSync.mockClear();
@@ -395,3 +445,127 @@ describe('Utils tests', () => {
     expect(script).toEqual('\n$var = command\n');
   });
 });
+
+describe.each(['linux', 'darwin', 'win32'])(
+  'Verbose script preparation on %s',
+  platform => {
+    let root: string;
+    let run: string;
+    let helper: string;
+    const env = {...process.env};
+
+    beforeEach(() => {
+      jest.restoreAllMocks();
+      root = fs.mkdtempSync(path.join(os.tmpdir(), 'setup-php-verbose-'));
+      const scripts = path.join(root, 'src', 'scripts');
+      const extension = platform === 'win32' ? '.ps1' : '.sh';
+      fs.mkdirSync(path.join(scripts, 'tools'), {recursive: true});
+      helper = path.join(scripts, 'tools', 'helper' + extension);
+      run = path.join(scripts, 'run' + extension);
+      fs.writeFileSync(helper, 'echo helper-output\n');
+      fs.writeFileSync(
+        run,
+        `. '${helper}' ${platform === 'win32' ? '>$null' : '>/dev/null'} 2>&1\n`
+      );
+      delete process.env.verbose;
+      delete process.env.VERBOSE;
+      delete process.env.RUNNER_DEBUG;
+    });
+
+    afterEach(() => {
+      process.env = {...env};
+      fs.rmSync(root, {recursive: true, force: true});
+    });
+
+    it.each([undefined, '', 'false', 'true', 'v', 'vv', 'vvv', 'invalid'])(
+      'prepares scripts for verbose=%s',
+      async verbose => {
+        if (verbose !== undefined) process.env.verbose = verbose;
+        const original = fs.readFileSync(run, 'utf8');
+        const enabled = /^(true|v{1,3})$/.test(verbose || '');
+        const tracing = /^v{2,3}$/.test(verbose || '');
+        const prepared = await utils.addVerbose(run, platform);
+        const script = fs.readFileSync(prepared, 'utf8');
+        expect(prepared !== run).toBe(enabled);
+        expect(
+          script.includes(platform === 'win32' ? '>$null' : '>/dev/null')
+        ).toBe(!enabled);
+        expect(script.includes('src-verbose')).toBe(enabled);
+        expect(script.startsWith('. ')).toBe(true);
+        expect(process.env.SETUP_PHP_TRACE).toBe(
+          tracing ? String(verbose!.length - 1) : '0'
+        );
+        expect(fs.readFileSync(run, 'utf8')).toBe(original);
+      }
+    );
+
+    it.each(['', ' ', '\t'])(
+      'handles pipe spacing %j and subsequent quiet runs',
+      async space => {
+        const target = platform === 'win32' ? '$null' : '/dev/null';
+        const pipe = `>${space}${target} 2>&1`;
+        const probe =
+          platform === 'win32'
+            ? 'echo probe 2>$null'
+            : 'command -v sh >/dev/null';
+        fs.writeFileSync(helper, `echo nested-output ${pipe}\n${probe}\n`);
+        process.env.VERBOSE = 'true';
+        const prepared = await utils.addVerbose(run, platform);
+        expect(
+          fs.readFileSync(
+            path.join(path.dirname(prepared), 'tools', path.basename(helper)),
+            'utf8'
+          )
+        ).toBe(
+          `echo nested-output ${platform === 'win32' ? '2>&1 | Out-Host' : ''}\n${probe}\n`
+        );
+        expect(fs.readFileSync(helper, 'utf8')).toContain(pipe);
+        process.env.verbose = 'false';
+        expect(await utils.addVerbose(run, platform)).toBe(run);
+        expect(process.env.SETUP_PHP_TRACE).toBe('0');
+        expect(fs.readFileSync(helper, 'utf8')).toContain(pipe);
+      }
+    );
+
+    it.each([undefined, 'false', 'true', 'v', 'vv', 'vvv'])(
+      'enables output for runner debug with verbose=%s',
+      async verbose => {
+        process.env.RUNNER_DEBUG = '1';
+        if (verbose !== undefined) process.env.verbose = verbose;
+        const prepared = await utils.addVerbose(run, platform);
+        expect(prepared).not.toBe(run);
+        expect(fs.readFileSync(prepared, 'utf8')).not.toMatch(
+          />\s*(?:\/dev\/null|\$null)\s+2>&1/
+        );
+        expect(process.env.SETUP_PHP_TRACE).toBe(
+          /^v{2,3}$/.test(verbose || '') ? String(verbose!.length - 1) : '0'
+        );
+      }
+    );
+
+    (process.platform === 'win32' ? it.skip : it)(
+      'uses fresh copies without writing through source symlinks',
+      async () => {
+        const outside = path.join(root, path.basename(helper));
+        const original = 'echo original >/dev/null 2>&1\n';
+        fs.writeFileSync(outside, original);
+        fs.unlinkSync(helper);
+        fs.symlinkSync(outside, helper);
+        process.env.verbose = 'true';
+        const first = await utils.addVerbose(run, platform);
+        const second = await utils.addVerbose(run, platform);
+        expect(first).not.toBe(second);
+        expect(fs.readFileSync(outside, 'utf8')).toBe(original);
+        expect(fs.readFileSync(helper, 'utf8')).toBe(original);
+        expect(
+          fs.readFileSync(
+            path.join(path.dirname(first), 'tools', path.basename(helper)),
+            'utf8'
+          )
+        ).toBe(
+          `echo original ${platform === 'win32' ? '2>&1 | Out-Host' : ''}\n`
+        );
+      }
+    );
+  }
+);

@@ -1,7 +1,7 @@
 {
-  "name": "setup-php",
-  "version": "2.37.2",
-  "private": false,
+  "name": "@step-security/setup-php",
+  "version": "2.40.0",
+  "private": true,
   "description": "Setup PHP for use with GitHub Actions",
   "main": "lib/install.js",
   "types": "lib/install.d.ts",
@@ -19,6 +19,7 @@
     "lint": "eslint **/src/*.ts **/__tests__/*.ts --cache --fix",
     "format": "prettier --write **/src/*.ts **/__tests__/*.ts && git add -f __tests__/ ",
     "format-check": "prettier --check **/src/*.ts **/__tests__/*.ts",
+    "typecheck": "tsc --project tsconfig.test.json --noEmit",
     "test": "jest"
   },
   "repository": {
@@ -31,33 +32,48 @@
     "setup"
   ],
   "author": "step-security",
+  "publisher": "step-security",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^2.0.1",
     "@actions/exec": "^2.0.0",
-    "axios": "^1.16.0",
+    "axios": "^1.20.0",
     "compare-versions": "^6.1.1"
   },
   "devDependencies": {
-    "@eslint/compat": "^2.1.0",
+    "@eslint/compat": "^2.1.1",
     "@eslint/js": "^10.0.1",
     "@types/jest": "^30.0.0",
-    "@types/node": "^25.9.2",
-    "@typescript-eslint/eslint-plugin": "^8.60.1",
-    "@typescript-eslint/parser": "^8.60.1",
-    "@vercel/ncc": "^0.38.4",
-    "eslint": "^10.4.1",
+    "@types/node": "^26.6.4",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
+    "@typescript-eslint/parser": "^8.71.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "@vercel/ncc": "^0.45.0",
+    "eslint": "^10.12.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.5",
-    "eslint-plugin-import-x": "^4.16.2",
-    "eslint-plugin-jest": "^29.15.2",
+    "eslint-plugin-import-x": "^4.17.1",
+    "eslint-plugin-jest": "^29.16.6",
     "eslint-plugin-prettier": "^5.5.6",
-    "globals": "^17.6.0",
-    "jest": "^30.4.2",
-    "jest-circus": "^30.4.2",
-    "nock": "^14.0.15",
-    "prettier": "^3.8.3",
-    "ts-jest": "^29.4.11",
-    "typescript": "^5.9.3"
+    "globals": "^17.13.0",
+    "jest": "^30.5.2",
+    "jest-circus": "^30.5.2",
+    "nock": "^14.0.17",
+    "prettier": "^3.9.9",
+    "ts-jest": "^29.4.14",
+    "typescript": "npm:@typescript/typescript6@^6.0.2"
+  },
+  "allowScripts": {
+    "fsevents@2.3.3": true,
+    "simple-git-hooks@2.13.1": true,
+    "unrs-resolver@1.11.1": true
+  },
+  "homepage": "https://github.com/step-security/setup-php#readme",
+  "bugs": {
+    "url": "https://github.com/step-security/setup-php/issues"
+  },
+  "engines": {
+    "node": ">=24",
+    "npm": ">=11"
   }
 }

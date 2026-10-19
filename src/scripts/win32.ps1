@@ -28,6 +28,18 @@ Function Add-Log($mark, $subject, $message) {
   }
 }
 
+# Function to run sensitive code without tracing. Expand tokens inside the script block.
+Function Invoke-WithoutTrace([scriptblock]$Script) {
+  Set-PSDebug -Off
+  $previous_trace = $setup_php_trace
+  $setup_php_trace = 0
+  try {
+    & $Script
+  } finally {
+    Set-PSDebug -Trace $previous_trace
+  }
+}
+
 # Function to set output on GitHub Actions.
 Function Set-Output() {
   param(
@@ -167,6 +179,26 @@ Function Get-File {
   }
 }
 
+# Function to get an asset name from the PHP builder release manifest.
+Function Get-PhpReleaseAsset {
+  param (
+    [ValidateSet('php', 'debug')]
+    [string]$Type,
+    [ValidateSet('stable', 'dev')]
+    [string]$Stability = 'stable'
+  )
+
+  if($null -eq $script:php_manifest) {
+    $script:php_manifest = Invoke-RestMethod "$php_builder/releases/download/php$version/manifest.json"
+  }
+  $thread_safety = if($ts) { 'ts' } else { 'nts' }
+  $asset = $script:php_manifest.$Stability.$Type.$thread_safety.$arch
+  if($null -eq $asset) {
+    throw "Asset not found in the php$version release manifest"
+  }
+  return $asset
+}
+
 # Function to make sure printf is in PATH.
 Function Add-Printf {
   if (-not(Test-Path "C:\Program Files\Git\usr\bin\printf.exe")) {
@@ -258,51 +290,30 @@ Function Add-PhpConfig {
   Get-Content -Path $ini_files | Add-Content -Path $php_dir\php.ini
 }
 
-# Function to get PHP from GitHub releases cache
-Function Set-PhpCache {
-  try {
-    try {
-      $release = Invoke-RestMethod https://api.github.com/repos/shivammathur/php-builder-windows/releases/tags/php$version
-      $asset = $release.assets | ForEach-Object {
-        if($_.name -match "php-$version.[0-9]+$env:PHPTS-Win32-.*-$arch.zip") {
-          return $_.name
-        }
-      } | Select-Object -Last 1
-      if($null -eq $asset) {
-        throw "Asset not found"
-      }
-    } catch {
-      $release = Get-File -Url $php_builder/releases/expanded_assets/php$version
-      $asset = $release.links.href | ForEach-Object {
-        if($_ -match "php-$version.[0-9]+$env:PHPTS-Win32-.*-$arch.zip") {
-          return $_.split('/')[-1]
-        }
-      } | Select-Object -Last 1
-    }
-    Get-File -Url $php_builder/releases/download/php$version/$asset -OutFile $php_dir\$asset
-    Set-PhpDownloadCache -Path $php_dir CurrentUser
-  } catch { }
+# Function to install PHP directly from the GitHub releases cache.
+Function Install-PhpFromCache {
+  $asset = Get-PhpReleaseAsset -Type php
+  $url = "$php_builder/releases/download/php$version/$asset"
+  Get-File -Url $url -FallbackUrl $php_windows/releases/archives/$asset -OutFile $php_dir\$asset
+  Set-PhpDownloadCache -Path $php_dir CurrentUser
+  $php_manager = Get-Module PhpManager
+  & $php_manager {
+    param($url, $path)
+    $php_version = Get-PhpVersionFromUrl -Url $url -ReleaseState Release
+    Install-PhpFromUrl -Url $url -Path $path -PhpVersion $php_version -InstallVCRedist $true
+  } $url $php_dir
+  $ini_path = "$php_dir\php.ini"
+  Copy-Item -Path $php_dir\php.ini-production -Destination $ini_path -Force
+  Set-PhpIniKey -Key date.timezone -Value UTC -Path $ini_path
+  Set-PhpIniKey -Key default_charset -Value UTF-8 -Path $ini_path
+  Set-PhpIniKey -Key extension_dir -Value $ext_dir -Path $ini_path
 }
 
 # Function to add debug symbols to PHP.
 Function Add-DebugSymbols {
-  $dev = if ($version -match $nightly_versions) { '-dev' } else { '' }
-  try {
-    $release = Invoke-RestMethod https://api.github.com/repos/shivammathur/php-builder-windows/releases/tags/php$version
-    $asset = $release.assets | ForEach-Object {
-      if($_.name -match "php-debug-pack-$version.[0-9]+$dev$env:PHPTS-Win32-.*-$arch.zip") {
-        return $_.name
-      }
-    } | Select-Object -Last 1
-  } catch {
-    $release = Get-File -Url $php_builder/releases/expanded_assets/php$version
-    $asset = $release.links.href | ForEach-Object {
-      if($_ -match "php-debug-pack-$version.[0-9]+$dev$env:PHPTS-Win32-.*-$arch.zip") {
-        return $_.split('/')[-1]
-      }
-    } | Select-Object -Last 1
-  }
-  Get-File -Url $php_builder/releases/download/php$version/$asset -OutFile $php_dir\$asset
+  $stability = if ($version -match $nightly_versions) { 'dev' } else { 'stable' }
+  $asset = Get-PhpReleaseAsset -Type debug -Stability $stability
+  Get-File -Url $php_builder/releases/download/php$version/$asset -FallbackUrl $php_windows/releases/archives/$asset -OutFile $php_dir\$asset
   Expand-Archive -Path $php_dir\$asset -DestinationPath $php_dir -Force
   Get-ChildItem -Path $php_dir -Filter php_*.pdb | Move-Item -Destination $ext_dir
 }
@@ -325,12 +336,20 @@ $ext_dir = "$php_dir\ext"
 $bin_dir = $php_dir
 $github = 'https://github.com'
 $php_builder = "$github/shivammathur/php-builder-windows"
+$php_windows = 'https://downloads.php.net/~windows'
+$php_manifest = $null
 $current_profile = "$env:TEMP\setup-php.ps1"
 $ProgressPreference = 'SilentlyContinue'
 $jit_versions = '8.[0-9]'
 $nightly_versions = '8.[6-9]'
 $xdebug3_versions = "7.[2-4]|8.[0-9]"
 $enable_extensions = ('openssl', 'curl', 'mbstring')
+
+$setup_php_trace = 0
+if ($env:SETUP_PHP_TRACE -match '^[12]$') {
+  $setup_php_trace = [int]$env:SETUP_PHP_TRACE
+  Set-PSDebug -Trace $setup_php_trace
+}
 
 $arch = 'x64'
 if(-not([Environment]::Is64BitOperatingSystem) -or $version -lt '7.0') {
@@ -424,8 +443,11 @@ if ($null -eq $installed -or -not("$($installed.Version).".StartsWith(($version 
     if ($version -match $nightly_versions) {
       $extra_version = Install-PhpNightly
     } else {
-      Set-PhpCache
-      Install-Php -Version $version -Architecture $arch -ThreadSafe $ts -InstallVC -Path $php_dir -TimeZone UTC -InitialPhpIni production -Force > $null 2>&1
+      try {
+        Install-PhpFromCache > $null 2>&1
+      } catch {
+        Install-Php -Version $version -Architecture $arch -ThreadSafe $ts -InstallVC -Path $php_dir -TimeZone UTC -InitialPhpIni production -Force > $null 2>&1
+      }
     }
     Add-PhpConfig
   } catch { }

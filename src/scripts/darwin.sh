@@ -17,7 +17,7 @@ handle_dependency_extensions() {
     for dependency_extension in "${dependency_extensions[@]}"; do
         safe_brew install --skip-link "${brew_opts[@]}" "$ext_tap/$dependency_extension@$version" >/dev/null 2>&1 &&
         brew link --overwrite --force "$dependency_extension@$version" >/dev/null 2>&1 &&
-        copy_brew_extensions "$dependency_extension"
+        copy_brew_extensions "$dependency_extension" || return $?
     done
   fi
 }
@@ -71,25 +71,42 @@ copy_brew_extensions() {
   fi
 }
 
+# Install an extension and its variant-specific dependencies with the current Brew state.
+install_brew_extension() {
+  local formula=$1
+  local extension=$2
+  handle_dependency_extensions "$formula" "$extension" &&
+  safe_brew install --skip-link "${brew_opts[@]}" "$ext_tap/$formula@$version" &&
+  brew link --overwrite --force "$formula@$version" &&
+  copy_brew_extensions "$formula"
+}
+
 # Function to install a php extension from shivammathur/extensions tap.
 add_brew_extension() {
   formula=$1
   prefix=$2
+  expected_version=${3:-}
   extension="$(get_extension_from_formula "$formula")"
   enable_extension "$extension" "$prefix"
-  if check_extension "$extension"; then
+  if check_extension "$extension" && { [ -z "$expected_version" ] || check_extension_version "$extension" "$expected_version"; }; then
     add_log "${tick:?}" "$extension" "Enabled"
   else
     add_brew_tap "$php_tap"
     add_brew_tap "$ext_tap"
     formula="$(get_renamed_formula "$formula")"
-    update_dependencies >/dev/null 2>&1
-    handle_dependency_extensions "$formula" "$extension" >/dev/null 2>&1
     (
-      safe_brew install --skip-link "${brew_opts[@]}" "$ext_tap/$formula@$version" >/dev/null 2>&1 &&
-      brew link --overwrite --force "$formula@$version" >/dev/null 2>&1 &&
-      copy_brew_extensions "$formula"
-    ) || pecl_install "$extension" >/dev/null 2>&1
+      patch_brew
+      # Keep the watchdog, but refresh before retrying a failed first attempt.
+      SETUP_PHP_BREW_RETRY_ATTEMPTS=1 install_brew_extension "$formula" "$extension" || {
+        update_dependencies && install_brew_extension "$formula" "$extension"
+      }
+    ) >/dev/null 2>&1 || {
+      if [ -n "$expected_version" ]; then
+        pecl_install "$extension-$expected_version" || pecl_install "$extension"
+      else
+        pecl_install "$extension"
+      fi
+    } >/dev/null 2>&1
     add_extension_log "$extension" "Installed and enabled"
   fi
 }
@@ -150,15 +167,15 @@ patch_brew() {
 
 # Function to update dependencies.
 update_dependencies() {
-  patch_brew
   if ! [ -e /tmp/update_dependencies ]; then
     for repo in "$brew_repo" "${core_repo:?}"; do
       if [ -e "$repo" ]; then
-        git_retry -C "$repo" fetch origin main && git -C "$repo" reset --hard origin/main
+        git_retry -C "$repo" fetch origin main && git -C "$repo" reset --hard origin/main || return $?
       fi
     done
     echo '' | sudo tee /tmp/update_dependencies >/dev/null 2>&1
   fi
+  patch_brew
 }
 
 # Function to get PHP version if it is already installed using Homebrew.
@@ -174,27 +191,49 @@ get_brewed_php() {
   fi
 }
 
+# Function to setup PHP from the cached builds.
+setup_cached_versions() {
+  latest="releases/download/php-$version" run_script \
+    "php-darwin" "$version" "${debug:?}" "${ts:?}" "" "${INPUT_EXTENSIONS:-}" >/dev/null 2>&1
+}
+
 # Function to setup PHP 5.6 and newer using Homebrew.
 add_php() {
+  local exit_code php_alias
   action=$1
   existing_version=$2
   suffix="$(get_php_formula_suffix)"
   php_keg="php@$version$suffix"
   php_formula="shivammathur/php/$php_keg"
   if [[ "$existing_version" = "false" || -n "$suffix" || "$action" = "upgrade" ]]; then
+    if [ "$(uname -m)" = "x86_64" ] || { [ "${runner:?}" != "self-hosted" ] && [ "${use_builds_cache:-true}" != "false" ]; }; then
+      setup_cached_versions && return 0
+      [ "$(uname -m)" != "x86_64" ] || return 1
+    fi
     update_dependencies
     add_brew_tap "$php_tap"
   fi
+  # Resolve PHP aliases before invoking brew to avoid scanning unrelated installed formulae.
+  php_alias="$tap_dir/$php_tap/Aliases/$php_keg"
+  if [ -L "$php_alias" ]; then
+    php_keg="$(basename "$(readlink "$php_alias")" .rb)"
+    php_formula="shivammathur/php/$php_keg"
+  fi
   if [[ "$existing_version" != "false" && -z "$suffix" ]]; then
     if [ "$action" = "upgrade" ]; then
-      safe_brew install --only-dependencies "$php_formula"
-      safe_brew upgrade -f --overwrite "$php_formula"
+      safe_brew install --only-dependencies "$php_formula" || return $?
+      safe_brew upgrade -f --overwrite "$php_formula" || return $?
     else
       brew unlink "$php_keg"
     fi
   else
-    safe_brew install --only-dependencies "$php_formula"
-    safe_brew install --skip-link -f --overwrite "$php_formula" 2>/dev/null || safe_brew upgrade -f --overwrite "$php_formula"
+    safe_brew install --only-dependencies "$php_formula" || return $?
+    safe_brew install --skip-link -f --overwrite "$php_formula" 2>/dev/null || {
+      exit_code=$?
+      # A timeout has exhausted its retries; do not start another build via upgrade.
+      [ "$exit_code" -ne 124 ] || return "$exit_code"
+      safe_brew upgrade -f --overwrite "$php_formula" || return $?
+    }
   fi
   brew link --force --overwrite "$php_keg" || (sudo chown -R "$(id -un)":"$(id -gn)" "$brew_prefix" && brew link --force --overwrite "$php_keg")
 }
@@ -247,18 +286,24 @@ setup_php() {
   php_config="$(command -v php-config 2>/dev/null)"
   update=true
   check_pre_installed
-  existing_version=$(get_brewed_php)
+  existing_version=$([ "$(uname -m)" != "x86_64" ] && get_brewed_php || echo false)
   status="Found"
   if [[ "$version" =~ ${old_versions:?} ]]; then
     run_script "php5-darwin" "${version/./}" >/dev/null 2>&1
     status="Installed"
-  elif [ "${existing_version:0:3}" != "$version" ]; then
-    add_php "install" "$existing_version" >/dev/null 2>&1
+  elif [[ "${existing_version:0:3}" != "$version" || -n "$(get_php_formula_suffix)" ]]; then
+    add_php "install" "$existing_version" >/dev/null 2>&1 || {
+      add_log "${cross:?}" "PHP" "Could not install PHP $version"
+      exit 1
+    }
     status="Installed"
   elif [[ "${existing_version:0:3}" = "$version" && "${update:?}" = "true" ]]; then
     brew_php_version="$(brew info --json "php@$version" 2>/dev/null | jq -r '.[].versions.stable')"
     if [ "$brew_php_version" != "$existing_version" ]; then
-      add_php "upgrade" "$existing_version" >/dev/null 2>&1
+      add_php "upgrade" "$existing_version" >/dev/null 2>&1 || {
+        add_log "${cross:?}" "PHP" "Could not upgrade PHP $version"
+        exit 1
+      }
       status="Upgraded"
     fi
   fi

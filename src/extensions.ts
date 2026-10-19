@@ -84,12 +84,21 @@ export async function addExtensionDarwin(
       case /(5\.[3-6]|7\.0)pcov/.test(version_extension):
         add_script += await utils.getUnsupportedLog('pcov', version, 'darwin');
         return;
+      // match 7.2xdebug2 to 7.4xdebug2
+      case /^7\.[2-4]xdebug2$/.test(version_extension):
+        add_script += await utils.joins(
+          '\nadd_brew_extension',
+          'xdebug2',
+          ext_prefix,
+          '2.9.8'
+        );
+        return;
       // match brew extensions
-      case /(?<!5\.[3-5])(amqp|apcu|brotli|excimer|expect|gmagick|gnupg|grpc|igbinary|imagick|imap|interbase|mailparse|maxminddb|mcrypt|memcache|memcached|mongodb|mongodb1|msgpack|newrelic|oauth|opentelemetry|pdo_firebird|pinba|protobuf|psr|raphf|rdkafka|redis|scalar_objects|seaslog|snmp|spx|ssh2|swoole|uopz|uploadprogress|uuid|vld|xdebug|xdebug2|xhprof|yaml|zmq|zstd)/.test(
+      case /(?<!5\.[3-5])(amqp|apcu|brotli|excimer|expect|gmagick|gnupg|grpc|igbinary|imagick|imap|interbase|lua|mailparse|maxminddb|mcrypt|memcache|memcached|mongodb|mongodb1|msgpack|newrelic|oauth|opentelemetry|pdo_firebird|pinba|protobuf|psr|raphf|rdkafka|redis|scalar_objects|seaslog|snmp|spx|ssh2|swoole|uopz|uploadprogress|uuid|vld|xdebug|xdebug2|xhprof|yaml|zmq|zstd)/.test(
         version_extension
       ):
       case /(?<!5\.[3-6])(ds|v8js)/.test(version_extension):
-      case /(5\.6|7\.[0-4])(propro|lua)/.test(version_extension):
+      case /(5\.6|7\.[0-4])(propro)/.test(version_extension):
       case /(?<!5\.[3-6]|7\.0)pcov/.test(version_extension):
       case /(?<!5\.[3-6])(ast|vips|xlswriter)/.test(version_extension):
       case /^(8\.[0-5])swow$/.test(version_extension):

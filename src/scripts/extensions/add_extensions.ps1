@@ -104,11 +104,50 @@ Function Add-Extension {
     [string]
     $extension_version = ''
   )
+  $extension_backup = ''
+  $restore_startup_errors = $false
   try {
-    $extension_info = Get-PhpExtension -Path $php_dir | Where-Object { $_.Name -eq $extension -or $_.Handle -eq $extension }
     $deps_dir = "$ext_dir\$extension-vc$($installed.VCVersion)-$arch"
     New-Item $deps_dir -Type Directory -Force > $null 2>&1
-    if ($null -ne $extension_info) {
+    $cached = $extension_version -ne '' -and (Test-Path "$ext_dir\$extension-$extension_version")
+    $extension_info = $null
+    if(-not $cached) {
+      $extension_info = Get-PhpExtension -Path $php_dir | Where-Object { $_.Name -eq $extension -or $_.Handle -eq $extension }
+    }
+    # Only suppress startup errors while probing a cached DLL or replacing an installed DLL.
+    if($cached -or ($extension_version -ne '' -and $extension_info.Version -ne $extension_version -and (Test-Path "$ext_dir\php_$extension.dll"))) {
+      $startup_errors = Get-PhpIniKey -Key display_startup_errors -Path "$php_dir\php.ini"
+      if($startup_errors -notmatch '^(0|off|false|no)$') {
+        $restore_startup_errors = $true
+        Set-PhpIniKey -Key display_startup_errors -Value Off -Path "$php_dir\php.ini"
+      }
+    }
+    if($cached) {
+      # Preserve the active DLL before probing a cache entry for another PHP build.
+      if(Test-Path "$ext_dir\php_$extension.dll") {
+        $extension_info = Get-PhpExtension -Path "$ext_dir\php_$extension.dll"
+        $backup_name = if($extension_info.Version) { "$extension-$($extension_info.Version)" } else { "$extension.bak" }
+        Copy-Item "$ext_dir\php_$extension.dll" "$ext_dir\$backup_name" -Force -ErrorAction Stop
+        $extension_backup = "$ext_dir\$backup_name"
+      }
+      Copy-Item "$ext_dir\$extension-$extension_version" "$ext_dir\php_$extension.dll" -Force
+      try {
+        Enable-ExtensionDependencies $extension
+        Enable-PhpExtension -Extension $extension -Path $php_dir
+        Set-ExtensionPrerequisites $extension
+        $cached_extension = Get-PhpExtension -Path $php_dir | Where-Object { ($_.Name -eq $extension -or $_.Handle -eq $extension) -and $_.State -eq 'Enabled' }
+        if($null -ne $cached_extension) {
+          Add-Log $tick $extension "Enabled"
+          return
+        }
+      } catch {
+        Write-Verbose "Could not enable cached ${extension}: $_"
+      }
+      # A cached DLL may target another PHP build; install it again if it did not load.
+      Remove-Item "$ext_dir\php_$extension.dll" -Force
+      $extension_info = $null
+    }
+    if ($null -ne $extension_info -and ($extension_version -eq '' -or $extension_info.Version -eq $extension_version)) {
       switch ($extension_info.State) {
         'Builtin' {
           Add-Log $tick $extension "Enabled"
@@ -138,15 +177,32 @@ Function Add-Extension {
         }
         # If extension for a different version exists
         if(Test-Path $ext_dir\php_$extension.dll) {
-          Move-Item $ext_dir\php_$extension.dll $ext_dir\php_$extension.bak.dll -Force
+          # Keep backups outside PhpManager's DLL scan and reuse known versions as cache entries.
+          $backup_name = if($extension_info.Version) { "$extension-$($extension_info.Version)" } else { "$extension.bak" }
+          Move-Item $ext_dir\php_$extension.dll "$ext_dir\$backup_name" -Force -ErrorAction Stop
+          $extension_backup = "$ext_dir\$backup_name"
         }
         Install-PhpExtension @params
         Set-ExtensionPrerequisites $extension
       }
       Add-Log $tick $extension "Installed and enabled"
     }
+    if($extension_version -ne '' -and (Test-Path "$ext_dir\php_$extension.dll")) {
+      Copy-Item "$ext_dir\php_$extension.dll" "$ext_dir\$extension-$extension_version" -Force
+    }
   } catch {
+    if($extension_backup -ne '') {
+      Copy-Item $extension_backup "$ext_dir\php_$extension.dll" -Force
+    }
     Add-Log $cross $extension "Could not install $extension on PHP $( $installed.FullVersion )"
+  } finally {
+    if($restore_startup_errors) {
+      if($null -eq $startup_errors) {
+        Set-PhpIniKey -Key display_startup_errors -Delete -Path "$php_dir\php.ini"
+      } else {
+        Set-PhpIniKey -Key display_startup_errors -Value $startup_errors -Path "$php_dir\php.ini"
+      }
+    }
   }
 }
 
