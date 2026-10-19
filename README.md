@@ -4,10 +4,9 @@
 <h1 align="center">Setup PHP in GitHub Actions</h1>
 
 <p align="center">
-  <a href="https://github.com/shivammathur/setup-php" title="GitHub action to setup PHP"><img alt="GitHub Actions status" src="https://github.com/shivammathur/setup-php/workflows/Main%20workflow/badge.svg"></a>
-  <a href="https://codecov.io/gh/shivammathur/setup-php" title="Code coverage"><img alt="Codecov Code Coverage" src="https://img.shields.io/codecov/c/github/shivammathur/setup-php?logo=codecov"></a>
-  <a href="https://github.com/shivammathur/setup-php/blob/main/LICENSE" title="license"><img alt="LICENSE" src="https://img.shields.io/badge/license-MIT-428f7e.svg?logo=open%20source%20initiative&logoColor=white&labelColor=555555"></a>
-  <a href="#tada-php-support" title="PHP Versions Supported"><img alt="PHP Versions Supported" src="https://img.shields.io/badge/php-5.3%20to%208.7-777bb3.svg?logo=php&logoColor=white&labelColor=555555"></a>
+  <a href="https://github.com/step-security/setup-php" title="GitHub action to setup PHP"><img alt="GitHub Actions status" src="https://github.com/step-security/setup-php/workflows/Main%20workflow/badge.svg"></a>
+  <a href="https://github.com/step-security/setup-php/blob/main/LICENSE" title="license"><img alt="LICENSE" src="https://img.shields.io/badge/license-MIT-428f7e.svg?logo=open%20source%20initiative&logoColor=white&labelColor=555555"></a>
+  <a href="#tada-php-support" title="PHP Versions Supported"><img alt="PHP Versions Supported" src="https://img.shields.io/badge/php-5.3%20to%208.6-777bb3.svg?logo=php&logoColor=white&labelColor=555555"></a>
 </p>
 
 Setup PHP with required extensions, php.ini configuration, code-coverage support, and various tools like composer in [GitHub Actions](https://github.com/features/actions "GitHub Actions"). This action gives you a cross-platform interface to set up the PHP environment you need to test your application. Refer to the [Usage](#memo-usage "How to use this") section and [examples](#examples "Examples of use") to see how to use this.
@@ -705,8 +704,8 @@ jobs:
 > Set up PHP on a self-hosted runner.
 
 - To set up a containerized self-hosted runner, refer to the following guides as per your base operating system.
-  - [Linux](https://github.com/shivammathur/setup-php/wiki/Dockerized-self-hosted-runner-on-Linux)
-  - [Windows](https://github.com/shivammathur/setup-php/wiki/Dockerized-self-hosted-runner-on-Windows)
+  - [Linux](https://github.com/step-security/setup-php/wiki/Dockerized-self-hosted-runner-on-Linux)
+  - [Windows](https://github.com/step-security/setup-php/wiki/Dockerized-self-hosted-runner-on-Windows)
 
 - To set up the runner directly on the host OS or in a virtual machine, follow this [requirements guide](https://github.com/step-security/setup-php/wiki/Requirements-for-self-hosted-runners "Requirements guide for self-hosted runner to run setup-php") before setting up the self-hosted runner.
 - If your workflow uses [service containers](https://help.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idservices "GitHub Actions Services"), then set up the runner on a Linux host or in a Linux virtual machine. GitHub Actions does not support nested virtualization on Linux, so services will not work in a dockerized container.
@@ -1005,88 +1004,12 @@ Examples of using `setup-php` with various PHP frameworks and packages.
 - A new major version of the action will only be tagged when there are breaking changes in the setup-php API i.e. - inputs, outputs, and environment flags.
 - For debugging any issues, use the [`verbose` environment variable](#verbose-setup).
 - It is highly discouraged to use the `main` branch as the version, it might break your workflow after major releases as they have breaking changes.
-- If you are using the `v1` tag or a `1.x.y` version, you should [switch to v2](https://github.com/shivammathur/setup-php/wiki/Switch-to-v2 "Guide for switching from setup-php v1 to v2") as `v1` is not supported anymore.
 
 ## :scroll: License
 
 - The scripts and documentation in this project are under the [MIT License](LICENSE "License for step-security/setup-php").
 - This project has multiple dependencies. Their licenses can be found in their respective repositories.
 - The logo for `setup-php` is a derivative work of [php.net logo](https://www.php.net/download-logos.php) and is licensed under the [CC BY-SA 4.0 License](https://creativecommons.org/licenses/by-sa/4.0/ "Creative Commons License").
-
-## :+1: Contributions
-
-> Contributions are welcome!
-
-- See [Contributor's Guide](.github/CONTRIBUTING.md "shivammathur/setup-php contribution guide") before you start.
-- If you face any issues or want to suggest a feature/improvement, start a discussion [here](https://github.com/shivammathur/setup-php/discussions "Setup PHP discussions").
-
-*Contributors of `setup-php` and other related projects*
-
-<p align="center">
-  <a href="https://github.com/shivammathur/setup-php/graphs/contributors">
-    <img src="https://setup-php.com/contributors/?" alt="Contributors of setup-php and related projects" width="100%">
-  </a>
-</p>
-
-## :sparkling_heart: Support This Project
-
-These companies generously provide setup-php their products and services to aid in the development of this project.
-
-<p>
-  <a target="_blank" href="https://www.jetbrains.com/?from=setup-php#gh-light-mode-only">
-    <img src="https://setup-php.com/sponsors/jetbrains.svg" alt="JetBrains" width="140" height="100">
-  </a>
-  <a target="_blank" href="https://www.jetbrains.com/?from=setup-php#gh-dark-mode-only">
-    <img src="https://setup-php.com/sponsors/jetbrains-white.svg" alt="JetBrains" width="140" height="100">
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a target="_blank" href="https://www.cloudflare.com/lp/project-alexandria/#gh-light-mode-only">
-    <img src="https://setup-php.com/sponsors/cloudflare.svg" alt="Cloudflare" width="240" height="80">
-  </a>
-  <a target="_blank" href="https://www.cloudflare.com/lp/project-alexandria/#gh-dark-mode-only">
-    <img src="https://setup-php.com/sponsors/cloudflare-white.svg" alt="Cloudflare" width="240" height="80">
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a target="_blank" href="https://www.macstadium.com/company/opensource#gh-light-mode-only">
-    <img src="https://setup-php.com/sponsors/macstadium.png" alt="Mac Stadium" width="200" height="80">
-  </a>
-  <a target="_blank" href="https://www.macstadium.com/company/opensource#gh-dark-mode-only">
-    <img src="https://setup-php.com/sponsors/macstadium-white.png" alt="Mac Stadium" width="200" height="80">
-  </a>
-  &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-  <a target="_blank" href="https://m.do.co/c/f1a8ee1277b0#gh-light-mode-only">
-    <img src="https://setup-php.com/sponsors/digitalocean.svg" alt="Digitalocean" width="100" height="100">
-  </a>
-  <a target="_blank" href="https://m.do.co/c/f1a8ee1277b0#gh-dark-mode-only">
-    <img src="https://setup-php.com/sponsors/digitalocean-white.svg" alt="Digitalocean" width="100" height="100">
-  </a>
-</p>
-
-Many users and organizations support setup-php via [GitHub Sponsors](https://github.com/sponsors/shivammathur).
-
-<a href="https://github.com/sponsors/shivammathur"><img src="https://setup-php.com/sponsors.svg?" alt="Sponsor shivammathur"></a>
-
-- If you use setup-php, please consider starring the project and sharing it.
-- If you blog, please share your experience of using `setup-php`.
-- Please [reach out](mailto:contact@setup-php.com) if you have any questions about sponsoring setup-php.
-
-## :package: Dependencies
-
-- [Node.js dependencies](https://github.com/shivammathur/setup-php/network/dependencies "Node.js dependencies")
-- [aaronparker/VcRedist](https://github.com/aaronparker/VcRedist "VcRedist PowerShell package")
-- [mlocati/powershell-phpmanager](https://github.com/mlocati/powershell-phpmanager "Package to handle PHP on windows")
-- [ppa:ondrej/php](https://launchpad.net/~ondrej/+archive/ubuntu/php "Packaging active PHP packages")
-- [shivammathur/cache-extensions](https://github.com/shivammathur/cache-extensions "GitHub action to help with caching PHP extensions")
-- [shivammathur/composer-cache](https://github.com/shivammathur/composer-cache "Cache composer releases")
-- [shivammathur/homebrew-extensions](https://github.com/shivammathur/homebrew-extensions "Tap for PHP extensions on MacOS")
-- [shivammathur/homebrew-php](https://github.com/shivammathur/homebrew-php "Tap for PHP builds on MacOS")
-- [shivammathur/icu-intl](https://github.com/shivammathur/icu-intl "icu4c and php-intl builds")
-- [shivammathur/php-builder](https://github.com/shivammathur/php-builder "Nightly PHP package for Ubuntu")
-- [shivammathur/php-builder-windows](https://github.com/shivammathur/php-builder-windows "Nightly PHP package for Windows")
-- [shivammathur/php-ubuntu](https://github.com/shivammathur/php-ubuntu "Cache stable PHP Packages for Ubuntu")
-- [shivammathur/php5-darwin](https://github.com/shivammathur/php5-darwin "Scripts to set up PHP5 versions on darwin")
-- [shivammathur/php5-ubuntu](https://github.com/shivammathur/php5-ubuntu "Scripts to set up PHP5 versions on ubuntu")
-
 ## :bookmark_tabs: Further Reading
 
 - [About GitHub Actions](https://github.com/features/actions "GitHub Actions")
