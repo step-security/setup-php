@@ -222,17 +222,51 @@ describe('Tools tests', () => {
   });
 
   it.each`
-    input_list                   | filtered_list
-    ${'a, b'}                    | ${'composer, a, b'}
-    ${'a, b, composer'}          | ${'composer, a, b'}
-    ${'a, b, composer:1.2.3'}    | ${'composer:1.2.3, a, b'}
-    ${'a, b, composer:v1.2.3'}   | ${'composer:1.2.3, a, b'}
-    ${'a, b, composer:snapshot'} | ${'composer:snapshot, a, b'}
-    ${'a, b, composer:preview'}  | ${'composer:preview, a, b'}
-    ${'a, b, composer:1'}        | ${'composer:1, a, b'}
-    ${'a, b, composer:2'}        | ${'composer:2, a, b'}
-    ${'a, b, composer:v1'}       | ${'composer:1, a, b'}
-    ${'a, b, composer:v2'}       | ${'composer:2, a, b'}
+    release                                                  | expected_release                | checksum                       | error
+    ${'tool:1.2.3'}                                          | ${'tool:1.2.3'}                 | ${undefined}                   | ${undefined}
+    ${'tool:1.2.3@sha256:' + 'a'.repeat(64)}                 | ${'tool:1.2.3'}                 | ${'sha256:' + 'a'.repeat(64)}  | ${undefined}
+    ${'tool:1.2.3@sha256:' + 'A'.repeat(64)}                 | ${'tool:1.2.3'}                 | ${'sha256:' + 'a'.repeat(64)}  | ${undefined}
+    ${'tool:1.2.3@SHA256:' + 'a'.repeat(64)}                 | ${'tool:1.2.3'}                 | ${'sha256:' + 'a'.repeat(64)}  | ${undefined}
+    ${'tool:1.2.3@sha512:' + 'b'.repeat(128)}                | ${'tool:1.2.3'}                 | ${'sha512:' + 'b'.repeat(128)} | ${undefined}
+    ${'tool:v1.2.3-beta.1+build.2@sha256:' + 'a'.repeat(64)} | ${'tool:v1.2.3-beta.1+build.2'} | ${'sha256:' + 'a'.repeat(64)}  | ${undefined}
+    ${'composer:2.9.8@sha256:' + 'c'.repeat(64)}             | ${'composer:2.9.8'}             | ${'sha256:' + 'c'.repeat(64)}  | ${undefined}
+    ${'tool:1.2.3@sha256:xyz'}                               | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Invalid sha256 checksum, expected 64 hexadecimal characters'}
+    ${'tool:1.2.3@sha256:' + 'a'.repeat(63)}                 | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Invalid sha256 checksum, expected 64 hexadecimal characters'}
+    ${'tool:1.2.3@sha512:' + 'b'.repeat(64)}                 | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Invalid sha512 checksum, expected 128 hexadecimal characters'}
+    ${'tool:1.2.3@sha384:' + 'b'.repeat(96)}                 | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Unsupported checksum algorithm sha384, expected sha256 or sha512'}
+    ${'tool:1.2.3@md5:' + 'b'.repeat(32)}                    | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Unsupported checksum algorithm md5, expected sha256 or sha512'}
+    ${'tool:1.2.3@sha256' + 'a'.repeat(64)}                  | ${'tool:1.2.3'}                 | ${undefined}                   | ${'Invalid checksum syntax, expected @sha256:<hash> or @sha512:<hash>'}
+    ${'tool:1.0@dev'}                                        | ${'tool:1.0@dev'}               | ${undefined}                   | ${undefined}
+  `(
+    'checking extractChecksum: $release',
+    ({release, expected_release, checksum, error}) => {
+      expect(tools.extractChecksum(release)).toStrictEqual({
+        release: expected_release,
+        ...(checksum !== undefined && {checksum}),
+        ...(error !== undefined && {error})
+      });
+    }
+  );
+
+  it.each`
+    input_list                                          | filtered_list
+    ${'a, b'}                                           | ${'composer, a, b'}
+    ${'a, b, composer'}                                 | ${'composer, a, b'}
+    ${'a, b, composer:1.2.3'}                           | ${'composer:1.2.3, a, b'}
+    ${'a, b, composer:v1.2.3'}                          | ${'composer:1.2.3, a, b'}
+    ${'a, b, composer:snapshot'}                        | ${'composer:snapshot, a, b'}
+    ${'a, b, composer:preview'}                         | ${'composer:preview, a, b'}
+    ${'a, b, composer:1'}                               | ${'composer:1, a, b'}
+    ${'a, b, composer:2'}                               | ${'composer:2, a, b'}
+    ${'a, b, composer:v1'}                              | ${'composer:1, a, b'}
+    ${'a, b, composer:v2'}                              | ${'composer:2, a, b'}
+    ${'a, b, composer:2.7.1@sha256:' + 'a'.repeat(64)}  | ${'composer:2.7.1@sha256:' + 'a'.repeat(64) + ', a, b'}
+    ${'a, b, composer:v2.7.1@sha256:' + 'a'.repeat(64)} | ${'composer:2.7.1@sha256:' + 'a'.repeat(64) + ', a, b'}
+    ${'a, b, composer:2.7.1@SHA256:' + 'a'.repeat(64)}  | ${'composer:2.7.1@SHA256:' + 'a'.repeat(64) + ', a, b'}
+    ${'a, b, composer:2.7.1@sha384:' + 'a'.repeat(96)}  | ${'composer:2.7.1@sha384:' + 'a'.repeat(96) + ', a, b'}
+    ${'a, b, composer:2.7.1@md5:' + 'a'.repeat(32)}     | ${'composer:2.7.1@md5:' + 'a'.repeat(32) + ', a, b'}
+    ${'a, b, composer:2.7.1@sha256' + 'a'.repeat(64)}   | ${'composer:2.7.1@sha256' + 'a'.repeat(64) + ', a, b'}
+    ${'a, b, composer@sha256:' + 'a'.repeat(64)}        | ${'composer@sha256:' + 'a'.repeat(64) + ', a, b'}
   `('checking filterList $input_list', async ({input_list, filtered_list}) => {
     expect(await tools.filterList(input_list.split(', '))).toStrictEqual(
       filtered_list.split(', ')
@@ -301,6 +335,23 @@ describe('Tools tests', () => {
       os: os,
       url: 'https://example.com/tool.phar'
     });
+    expect(await tools.addArchive(data)).toContain(script);
+  });
+
+  it.each`
+    os          | script
+    ${'linux'}  | ${'add_tool https://example.com/tool.phar tool "-v" sha256:' + 'a'.repeat(64)}
+    ${'darwin'} | ${'add_tool https://example.com/tool.phar tool "-v" sha256:' + 'a'.repeat(64)}
+    ${'win32'}  | ${'Add-Tool https://example.com/tool.phar tool "-v" sha256:' + 'a'.repeat(64)}
+  `('checking addArchive with checksum: $os', async ({os, script}) => {
+    const data = getData({
+      tool: 'tool',
+      version: '1.2.3',
+      version_parameter: JSON.stringify('-v'),
+      os: os,
+      url: 'https://example.com/tool.phar'
+    });
+    data.checksum = 'sha256:' + 'a'.repeat(64);
     expect(await tools.addArchive(data)).toContain(script);
   });
 
@@ -494,7 +545,7 @@ describe('Tools tests', () => {
           );
         }
       }));
-      const isolatedTools = await import('../src/tools');
+      const isolatedTools = jest.requireActual<typeof tools>('../src/tools');
       affected = isolatedTools.skipGitHubAuthForComposerVersion('2.9.7');
       fixed = isolatedTools.skipGitHubAuthForComposerVersion('2.9.8');
     });
@@ -585,13 +636,15 @@ describe('Tools tests', () => {
 
   it.each([
     [
-      'blackfire, blackfire-player, box, churn, cs2pr, flex, grpc_php_plugin, mago, name-collision-detector, parallel-lint, php-cs-fixer, php-scoper, phpDocumentor, phplint, phpstan, phpunit, pecl, phing, phinx, phinx:1.2.3, phive, phpunit-bridge, phpunit-polyfills, pint, php-config, phpize, protoc, symfony, vapor, wp, pie',
+      'blackfire, blackfire-player, box, churn, cloud-cli, cpx, cs2pr, flex, grpc_php_plugin, mago, name-collision-detector, parallel-lint, php-cs-fixer, php-scoper, phpDocumentor, phplint, phpstan, phpunit, pecl, phing, phinx, phinx:1.2.3, phive, phpunit-bridge, phpunit-polyfills, pint, php-config, phpize, protoc, symfony, vapor, wp, pie',
       [
         'add_tool https://github.com/shivammathur/composer-cache/releases/latest/download/composer-7.4-stable.phar,https://artifacts.setup-php.com/composer/composer-7.4-stable.phar,https://dl.cloudsmith.io/public/shivammathur/composer-cache/raw/files/composer-7.4-stable.phar,https://getcomposer.org/composer-stable.phar composer',
         'add_blackfire',
         'add_tool https://get.blackfire.io/blackfire-player-v1.22.0.phar blackfire-player "-V"',
         'add_tool https://github.com/box-project/box/releases/latest/download/box.phar box "--version"',
         'add_tool https://github.com/bmitch/churn-php/releases/latest/download/churn.phar churn "-V"',
+        'add_composer_tool cloud-cli cloud-cli laravel/ scoped',
+        'add_tool https://github.com/laravel/cpx/releases/latest/download/cpx cpx "--version"',
         'add_tool https://github.com/staabm/annotate-pull-request-from-checkstyle/releases/latest/download/cs2pr cs2pr "-V"',
         'add_composer_tool flex flex symfony/ global',
         'add_grpc_php_plugin latest',
@@ -630,7 +683,7 @@ describe('Tools tests', () => {
 
   it.each([
     [
-      'backward-compatibility-check, behat, blackfire, blackfire-player, churn, composer-dependency-analyser, composer-normalize, composer-require-checker, composer-unused, cs2pr:1.2.3, ecs, flex, grpc_php_plugin:1.2.3, infection, mago:0.26.1, name-collision-detector, phan, phan:1.2.3, phing:1.2.3, phinx, phive:1.2.3, php-config, phpcbf, phpcpd, phpcs, phpdoc, phpize, phpmd, phpspec, phpunit-bridge:5.6, phpunit-polyfills:1.0.1, protoc:v1.2.3, psalm, rector, symfony-cli, vapor-cli, wp-cli, pie',
+      'backward-compatibility-check, behat, blackfire, blackfire-player, churn, composer-dependency-analyser, composer-normalize, composer-require-checker, composer-unused, cpx:2.0.0, cs2pr:1.2.3, ecs, flex, grpc_php_plugin:1.2.3, infection, laravel-cloud, mago:0.26.1, name-collision-detector, phan, phan:1.2.3, phing:1.2.3, phinx, phive:1.2.3, php-config, phpcbf, phpcpd, phpcs, phpdoc, phpize, phpmd, phpspec, phpunit-bridge:5.6, phpunit-polyfills:1.0.1, protoc:v1.2.3, psalm, rector, symfony-cli, vapor-cli, wp-cli, pie',
       [
         'add_tool https://github.com/shivammathur/composer-cache/releases/latest/download/composer-7.4-stable.phar,https://artifacts.setup-php.com/composer/composer-7.4-stable.phar,https://dl.cloudsmith.io/public/shivammathur/composer-cache/raw/files/composer-7.4-stable.phar,https://getcomposer.org/composer-stable.phar composer',
         'add_composer_tool behat behat behat/ scoped',
@@ -641,10 +694,12 @@ describe('Tools tests', () => {
         'add_composer_tool composer-dependency-analyser composer-dependency-analyser shipmonk/ scoped',
         'add_composer_tool composer-require-checker composer-require-checker maglnet/ scoped',
         'add_tool https://github.com/composer-unused/composer-unused/releases/latest/download/composer-unused.phar composer-unused "-V"',
+        'add_tool https://github.com/laravel/cpx/releases/download/v2.0.0/cpx cpx "--version"',
         'add_tool https://github.com/staabm/annotate-pull-request-from-checkstyle/releases/download/1.2.3/cs2pr cs2pr "-V"',
         'add_composer_tool flex flex symfony/ global',
         'add_grpc_php_plugin 1.2.3',
         'add_tool https://github.com/infection/infection/releases/latest/download/infection.phar infection "-V"',
+        'add_composer_tool cloud-cli cloud-cli laravel/ scoped',
         'add_mago 0.26.1',
         'add_composer_tool name-collision-detector name-collision-detector shipmonk/ scoped',
         'add_tool https://github.com/phan/phan/releases/latest/download/phan.phar phan "-v"',
@@ -775,6 +830,102 @@ describe('Tools tests', () => {
   });
 
   it.each`
+    tools_csv                                    | os          | script
+    ${'phpunit:9.5.0@sha256:' + 'a'.repeat(64)}  | ${'linux'}  | ${'add_tool https://phar.phpunit.de/phpunit-9.5.0.phar,https://phar.phpunit.de/phpunit-9.phar phpunit "--version" sha256:' + 'a'.repeat(64)}
+    ${'phpunit:9.5.0@sha256:' + 'a'.repeat(64)}  | ${'win32'}  | ${'Add-Tool https://phar.phpunit.de/phpunit-9.5.0.phar,https://phar.phpunit.de/phpunit-9.phar phpunit "--version" sha256:' + 'a'.repeat(64)}
+    ${'composer:2.9.8@sha256:' + 'b'.repeat(64)} | ${'linux'}  | ${'composer 2.9.8 sha256:' + 'b'.repeat(64)}
+    ${'cs2pr:1.2.3@sha256:' + 'd'.repeat(64)}    | ${'linux'}  | ${'add_tool https://github.com/staabm/annotate-pull-request-from-checkstyle/releases/download/1.2.3/cs2pr cs2pr "-V" sha256:' + 'd'.repeat(64)}
+    ${'phive:0.15.3@sha512:' + 'c'.repeat(128)}  | ${'darwin'} | ${'add_tool https://github.com/phar-io/phive/releases/download/0.15.3/phive-0.15.3.phar phive "status" sha512:' + 'c'.repeat(128)}
+    ${'phinx:1.2.3@sha256:' + 'a'.repeat(64)}    | ${'linux'}  | ${'add_log "$cross" "phinx" "Checksum verification is not supported for phinx"'}
+    ${'pecl:1.2.3@sha256:' + 'a'.repeat(64)}     | ${'linux'}  | ${'add_log "$cross" "pecl" "Checksum verification is not supported for pecl"'}
+    ${'phpunit:9.5.0@sha256:invalid'}            | ${'linux'}  | ${'add_log "$cross" "phpunit" "Invalid sha256 checksum, expected 64 hexadecimal characters"'}
+    ${'composer:2.9.8@SHA256:' + 'b'.repeat(64)} | ${'linux'}  | ${'composer 2.9.8 sha256:' + 'b'.repeat(64)}
+    ${'composer:2.9.8@sha384:' + 'b'.repeat(96)} | ${'linux'}  | ${'add_log "$cross" "composer" "Unsupported checksum algorithm sha384, expected sha256 or sha512"'}
+    ${'composer:2.9.8@md5:' + 'b'.repeat(32)}    | ${'linux'}  | ${'add_log "$cross" "composer" "Unsupported checksum algorithm md5, expected sha256 or sha512"'}
+    ${'composer:2.9.8@sha256' + 'b'.repeat(64)}  | ${'linux'}  | ${'add_log "$cross" "composer" "Invalid checksum syntax, expected @sha256:<hash> or @sha512:<hash>"'}
+  `(
+    'checking addTools with checksum: $tools_csv, $os',
+    async ({tools_csv, os, script}) => {
+      expect(await tools.addTools(tools_csv, '7.4', os)).toContain(script);
+    }
+  );
+
+  describe.each(['linux', 'darwin', 'win32'])(
+    'Checksum version requirements on %s',
+    os => {
+      it.each(['2.9.8+build.1', '2.9.8-rc.1', '2.9.8-rc.1+build.2'])(
+        'preserves the exact Composer version and checksum for %s',
+        async version => {
+          const checksum = 'sha256:' + 'a'.repeat(64);
+          const release = `composer:${version}@${checksum}`;
+          expect(await tools.filterList([release])).toEqual([release]);
+          const script = await tools.addTools(release, '8.4', os);
+          expect(script).toContain(
+            `https://github.com/composer/composer/releases/download/${version}/composer.phar`
+          );
+          expect(script).toContain(
+            `https://getcomposer.org/download/${version}/composer.phar`
+          );
+          expect(script).toContain(`composer ${version} ${checksum}`);
+          expect(script).not.toContain('latest');
+          expect(script).not.toContain('composer-stable.phar');
+        }
+      );
+
+      it.each([
+        '',
+        ':latest',
+        ':stable',
+        ':preview',
+        ':snapshot',
+        ':2',
+        ':2.x',
+        ':2.9',
+        ':2.9.x',
+        ':^2.9.8'
+      ])(
+        'rejects a checksum on a non-full version %s without an unpinned install',
+        async version => {
+          for (const tool of ['composer', 'phpunit']) {
+            const release = `${tool}${version}@sha256:${'a'.repeat(64)}`;
+            const data = await tools.getData(release, '8.4', os);
+            expect(data.error).toBe(
+              'Checksum pinning requires a full version, for example tool:1.2.3'
+            );
+            expect(data.url).toBe('');
+            const script = await tools.addTools(release, '8.4', os);
+            expect(script).toContain(data.error);
+            const installations = script
+              .split('\n')
+              .filter(line => /^add[-_]tool /i.test(line));
+            expect(
+              installations.some(line => new RegExp(` ${tool}( |$)`).test(line))
+            ).toBe(false);
+          }
+        }
+      );
+    }
+  );
+
+  it.each`
+    type                 | tool_function  | supported
+    ${'phar'}            | ${undefined}   | ${true}
+    ${'custom-function'} | ${undefined}   | ${true}
+    ${'custom-function'} | ${'composer'}  | ${true}
+    ${'custom-function'} | ${'pecl'}      | ${false}
+    ${'custom-function'} | ${'dev_tools'} | ${false}
+    ${'composer'}        | ${undefined}   | ${false}
+    ${'custom-package'}  | ${undefined}   | ${false}
+  `(
+    'checking supportsChecksum: $type, $tool_function',
+    async ({type, tool_function, supported}) => {
+      const data = getData({tool: 'tool', type: type});
+      data.function = tool_function;
+      expect(await tools.supportsChecksum(data)).toBe(supported);
+    }
+  );
+
+  it.each`
     tools_csv        | token              | script
     ${'cs2pr:1.2'}   | ${'invalid_token'} | ${'add_log "$cross" "cs2pr" "Invalid token"'}
     ${'phpunit:1.2'} | ${'invalid_token'} | ${'add_log "$cross" "phpunit" "Invalid token"'}
@@ -814,7 +965,7 @@ describe('Tools tests', () => {
           );
         }
       }));
-      const isolatedTools = await import('../src/tools');
+      const isolatedTools = jest.requireActual<typeof tools>('../src/tools');
       result = await isolatedTools.addTools('broken-tool', '7.4', 'linux');
     });
 

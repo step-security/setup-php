@@ -21,6 +21,13 @@ check_extension() {
   fi
 }
 
+# Function to test the loaded version of an extension.
+check_extension_version() {
+  local extension=$1
+  local ext_version=$2
+  php -d display_errors=0 -r "exit(phpversion(\$argv[1]) === \$argv[2] ? 0 : 1);" -- "$extension" "$ext_version" >/dev/null 2>&1
+}
+
 # Function to check if extension is shared
 shared_extension() {
   [ -e "${ext_dir:?}/$1.so" ]
@@ -188,17 +195,18 @@ pecl_install() {
     check_extension "${extension%-*}" && return 0 || return 1;
   else
     cpu_count="$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo '1')"
-    prefix_opts="$(parse_args "$extension" CONFIGURE_PREFIX_OPTS) MAKEFLAGS='-j $cpu_count'"
+    local prefix_opts=()
+    IFS=' ' read -r -a prefix_opts <<<"$(parse_args "$extension" CONFIGURE_PREFIX_OPTS)"
     suffix_opts="$(parse_args "$extension" CONFIGURE_OPTS) $(parse_args "$extension" CONFIGURE_SUFFIX_OPTS)"
     IFS=' ' read -r -a libraries <<<"$(parse_args "$extension" LIBS) $(parse_args "$extension" "$(uname -s)"_LIBS)"
     (( ${#libraries[@]} )) && add_libs "${libraries[@]}" >/dev/null 2>&1
     if [ "$version" = "5.3" ]; then
-      yes '' 2>/dev/null | sudo "$prefix_opts" pecl install -f "$extension" >/dev/null 2>&1
+      yes '' 2>/dev/null | sudo env "${prefix_opts[@]}" MAKEFLAGS="-j $cpu_count" pecl install -f "$extension" >/dev/null 2>&1
     else
-      yes '' 2>/dev/null | sudo "$prefix_opts" pecl install -f -D "$(parse_pecl_configure_options "$suffix_opts")" "$extension" >/dev/null 2>&1
+      yes '' 2>/dev/null | sudo env "${prefix_opts[@]}" MAKEFLAGS="-j $cpu_count" pecl install -f -D "$(parse_pecl_configure_options "$suffix_opts")" "$extension" >/dev/null 2>&1
     fi
     local exit_code=$?
-    sudo pecl info "$extension" | grep -iq 'zend extension' && prefix=zend_extension
+    sudo pecl info "$extension" 2>/dev/null | grep -iq 'zend extension' && prefix=zend_extension
     enable_extension "${extension%-*}" "$prefix"
     return "$exit_code"
   fi
@@ -209,17 +217,27 @@ add_pecl_extension() {
   local extension=$1
   local pecl_version=$2
   local prefix=$3
-  enable_extension "$extension" "$prefix"
   if [[ $pecl_version =~ .*(alpha|beta|rc|snapshot|preview).* ]]; then
     pecl_version=$(get_pecl_version "$extension" "$pecl_version")
   fi
-  ext_version=$(php -r "echo phpversion('$extension');")
+  # Cache versioned extensions using suffixless copies in extension_dir.
+  if [ -n "$pecl_version" ] && [ -e "${ext_dir:?}/$extension-$pecl_version" ]; then
+    sudo cp "${ext_dir:?}/$extension-$pecl_version" "${ext_dir:?}/$extension.so"
+    sudo rm -f /tmp/php"${version:?}"_extensions
+  fi
+  enable_extension "$extension" "$prefix"
+  ext_version=$(php -d display_errors=0 -r "echo phpversion('$extension');" 2>/dev/null)
   if check_extension "$extension" && [[ -z "$pecl_version" || (-n "$pecl_version" && "${ext_version/-/}" == "$pecl_version") ]]; then
+    [ -n "$pecl_version" ] && sudo cp "${ext_dir:?}/$extension.so" "${ext_dir:?}/$extension-$pecl_version" 2>/dev/null || true
     add_log "${tick:?}" "$extension" "Enabled"
   else
+    [ -n "$pecl_version" ] && sudo rm -f "${ext_dir:?}/$extension-$pecl_version"
     [ -n "$pecl_version" ] && pecl_version="-$pecl_version"
     pecl_install "$extension$pecl_version" || ( [ "${fail_fast:?}" = "false" ] && add_extension "$extension" "$(get_extension_prefix "$extension")" >/dev/null 2>&1)
     extension_version="$(php -r "echo phpversion('$extension');")"
+    if [ -n "$pecl_version" ] && [ "${extension_version/-/}" = "${pecl_version#-}" ]; then
+      sudo cp "${ext_dir:?}/$extension.so" "${ext_dir:?}/$extension-$extension_version" 2>/dev/null || true
+    fi
     [ -n "$extension_version" ] && extension_version="-$extension_version"
     add_extension_log "$extension$extension_version" "Installed and enabled"
   fi
