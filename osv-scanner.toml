@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GHSA-hp3w-g68c-fv3c"
+reason = "sprintf-js is a transitive dev-only dependency (via argparse) and is not included in the dist bundle, so there is no production impact."
